@@ -1,0 +1,293 @@
+### This will walk through alignment of reads to genome from (https://zenodo.org/records/14110456) 
+### The following is script used on TagSeq Standard Coverage (3-5M) Library Preparation RNA Library Preparation
+NovaSeq S1, SR100 (per Read) NovaSeq Sequencing samples
+
+## Open two terminal windows- one for local and one for hpc (if not on campus use VPN)
+## Log in to Leap2 (remote server-hpc)
+  ssh yourname@leap2.txstate.edu
+
+## Make environment with cutadapt and STAR
+## Add Misha Matz's scripts to the directory
+  git clone https://github.com/z0on/tag-based_RNAseq.git
+
+## Add it to your path
+  echo 'export PATH="$PATH:$HOME/tag-based_RNAseq"' >> ~/.bashrc && source ~/.bashrc
+
+## Download your genome from the internet, then scp it up to the server 
+  scp ~/Downloads/Genome ~/TagSeq/Genome:yourname@leap2.txstate.edu
+
+
+## If your samples are split across multiple files from different lanes, 
+
+
+## concatenating the corresponding fastq files by sample:
+  ~/pathtotag-based_RNAseq/ngs_concat.pl *_SequenceID  "FilenameTextImmediatelyBeforeSampleID(.+)FilenameTextImmediatelyAfterSampleID"
+
+
+## Trimming the adaptors, deduplicating, and quality filtering using a bash script called "clean"
+
+      #!/bin/bash
+      #SBATCH --job-name=clean
+      #SBATCH -N 1
+      #SBATCH -t 6-24:0:0
+      #SBATCH --partition=himem
+      #SBATCH --mail-type=end
+      #SBATCH --mem=250G
+      #SBATCH --mail-user=netID@txstate.edu
+      #SBATCH -o clean_%j.out
+      #SBATCH -e clean_%j.err
+      
+      # load conda
+      source ~/miniconda3/etc/profile.d/conda.sh
+      conda activate cutadapt3
+      
+      # make output directory
+      mkdir -p clean
+      
+      # loop over fq files
+      for F in ~/LarvalImmunity/*.fq; do
+          ~/tag-based_RNAseq/tagseq_clipper.pl "$F" | \
+          cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 \
+          -o clean/$(basename "${F/.fq/}.trim.fq")
+      done
+
+## Then execute the job
+  sbatch clean
+
+##Make a bash script to format the genome/transcriptome using STAR indexing and align the reads to the GFF3
+
+      #!/bin/bash
+      #SBATCH --job-name=STAR_TagSeq
+      #SBATCH -N 1
+      #SBATCH -t 48:00:00
+      #SBATCH --partition=himem
+      #SBATCH --mem=100G
+      #SBATCH --mail-type=end
+      #SBATCH --mail-user=netID@txstate.edu
+      #SBATCH -o STAR_%j.out
+      #SBATCH -e STAR_%j.err
+      
+      # -----------------------------
+      # Setup STAR
+      # -----------------------------
+      export PATH=~/software/STAR/STAR-2.7.11b/source:$PATH
+      STAR --version
+      
+      # -----------------------------
+      # Paths
+      # -----------------------------
+      GENOME_FASTA=/home/slv62/LarvalImmunity/STARAlignment2Genome/apoculata.genome.masked.fasta
+      GTF=/home/slv62/LarvalImmunity/STARAlignment2Genome/apoculata.gff3
+      READ_DIR=/home/slv62/LarvalImmunity/clean/trim.fq_files
+      INDEX_DIR=/home/slv62/LarvalImmunity/STARAlignment2Genome/STAR_index
+      OUT_DIR=/home/slv62/LarvalImmunity/STARAlignment2Genome/STAR_alignment
+      
+      # Create directories
+      mkdir -p "$INDEX_DIR" "$OUT_DIR"
+      
+      # -----------------------------
+      # Step 1: Build STAR genome index
+      # -----------------------------
+      STAR --runThreadN 16 \
+           --runMode genomeGenerate \
+           --genomeDir "$INDEX_DIR" \
+           --genomeFastaFiles "$GENOME_FASTA" \
+           --sjdbGTFfile "$GTF" \
+           --sjdbOverhang 49
+      
+      # -----------------------------
+      # Step 2: Align reads
+      # -----------------------------
+      for fq in "$READ_DIR"/*.trim.fq
+      do
+          sample=$(basename "$fq" .trim.fq)
+          mkdir -p "$OUT_DIR/$sample"
+      
+          STAR --runThreadN 16 \
+               --genomeDir "$INDEX_DIR" \
+               --readFilesIn "$fq" \
+               --outFileNamePrefix "$OUT_DIR/$sample/" \
+               --outSAMtype BAM SortedByCoordinate \
+               --outSAMstrandField intronMotif \
+               --limitBAMsortRAM 80000000000
+      done
+
+## save and submit the job
+  sbatch STAR_TagSeq
+
+
+## This script will summarize the overall alignment rates for each sample 
+      
+  nano STAR_summary
+      
+      #!/bin/bash
+      #SBATCH --job-name=STAR_summary
+      #SBATCH -N 1
+      #SBATCH -t 01:00:00
+      #SBATCH --partition=himem
+      #SBATCH --mem=2G
+      #SBATCH --mail-type=end
+      #SBATCH --mail-user=netID@txstate.edu
+      #SBATCH -o STAR_summary_%j.out
+      #SBATCH -e STAR_summary_%j.err
+      
+      ALIGNMENT_DIR=~/LarvalImmunity/STARAlignment2Genome/STAR_alignment
+      SUMMARY_FILE="$ALIGNMENT_DIR/STAR_alignment_summary.txt"
+      
+      # initialize summary file
+      > "$SUMMARY_FILE"
+      
+      for sample_dir in "$ALIGNMENT_DIR"/*/ ; do
+          sample=$(basename "$sample_dir")
+          log_file="$sample_dir/Log.final.out"
+      
+          if [ -f "$log_file" ]; then
+              rate=$(grep "Uniquely mapped reads %" "$log_file" | awk '{print $NF}')
+              echo -e "$sample\t$rate" >> "$SUMMARY_FILE"
+          else
+              echo -e "$sample\tNA" >> "$SUMMARY_FILE"
+          fi
+        done
+
+      echo "STAR alignment summary written to $SUMMARY_FILE"
+
+
+##save and submit the job 
+      sbatch STAR_summary
+
+
+## Now we need to make a dummy table which has gene|gene
+## For example: 
+          gene,gene
+          Ap11,Ap11
+          Ap10,Ap10
+          Ap14,Ap14
+          Ap3,Ap3
+## Make a bash script that does this using your reference
+
+  nano GeneGene
+      !/bin/bash
+      #SBATCH --job-name=GeneGene
+      #SBATCH -N 1
+      #SBATCH -t 6-24:00
+      #SBATCH --partition=himem
+      #SBATCH --mem=50G
+      #SBATCH --open-mode=append
+      #SBATCH --mail-type=end
+      #SBATCH --mail-user=slv62@txstate.edu
+      #SBATCH -o GeneGene.out
+      #SBATCH -e GeneGene.err
+      
+      # Input genome fasta
+      INPUT="$HOME/LarvalImmunity/STAR_alignment2Genome/apoc_genome/apoculata.genome.masked.$
+      
+      # Output CSV (same directory as INPUT)
+      OUTPUT="$HOME/LarvalImmunity/STAR_alignment2Genome/GeneGene.csv"
+      
+      # Write header
+      echo "gene,gene" > "$OUTPUT"
+      
+      # Extract gene names from fasta headers and duplicate into two columns
+      grep "^>" "$INPUT" | sed 's/^>//' | awk '{print $1","$1}' >> "$OUTPUT"
+      
+      echo "CSV created at: $OUTPUT"
+  
+#Save and submit the job
+  sbatch GeneGene
+
+
+## Now make a script to generate your readcount matrix from aligning the transcripts to the genome (ussing the GFF file also allows us to look at the features)
+     nano readcount.sh
+      #!/bin/bash
+      #SBATCH --job-name=readcount
+      #SBATCH -N 1
+      #SBATCH -t 6-24:00
+      #SBATCH --partition=himem
+      #SBATCH --mem=50G
+      #SBATCH --cpus-per-task=16
+      #SBATCH --mail-type=end
+      #SBATCH --mail-user=slv62@txstate.edu
+      #SBATCH -o readcount.out
+      #SBATCH -e readcount.err
+      
+      # ==============================
+      # CONFIG
+      # ==============================
+      # directory containing BAM files
+      BASEDIR="$HOME/LarvalImmunity/STAR_alignment2Genome/bams"
+      
+      
+      # Fix GFF file to make it more uniform to extract gene names and collapse exons by this
+      # GTF/GFF annotation
+      ANNOT="$HOME/LarvalImmunity/STAR_alignment2Genome/apoculata.gff3"
+      p "$ANNOT" "${ANNOT}.bak"
+      
+      awk -F'\t' 'BEGIN{OFS="\t"}
+      $3=="exon" {
+          # If Name= is missing, set it to the ID of the parent gene (remove .exonN suffix)
+          if($9 !~ /Name=/) {
+              match($9,/ID=([^;]+)/,id);
+              split(id[1],a,"\\.exon");  # strip .exon1/.exon2 etc
+              $9=$9";Name="a[1];
+          }
+      }1' "$ANNOT" > "${ANNOT}.tmp" && mv "${ANNOT}.tmp" "$ANNOT"
+      
+      echo "GFF3 fixed in place: $ANNOT (original backed up as ${ANNOT}.bak)"
+      
+      
+      # output directory
+      OUTDIR="$HOME/LarvalImmunity/STAR_alignment2Genome/read_counts"
+      mkdir -p "$OUTDIR" logs
+
+      # final outputs
+      MATRIX_TXT="$OUTDIR/read_count_matrix.txt"
+      MATRIX_CSV="$OUTDIR/read_count_matrix.csv"
+      
+      # ==============================
+      # FIND BAM FILES
+      # ==============================
+      BAMS=($(ls "$BASEDIR"/*.bam 2>/dev/null | sort))
+      
+      if [[ ${#BAMS[@]} -eq 0 ]]; then
+        echo "No BAM files found in $BASEDIR"
+        exit 1
+      fi
+      
+      echo "Running featureCounts on BAM files:"
+      for f in "${BAMS[@]}"; do
+        echo "  $f"
+      done
+      # ==============================
+      # RUN FEATURECOUNTS
+      # ==============================
+      ~/miniconda3/envs/subread/bin/featureCounts \
+        -T 16 \
+        -a "$ANNOT" \
+        -o "$MATRIX_TXT" \
+        -t exon \
+        -g Name \
+        -F GFF \
+        --ignoreDup \
+        --extraAttributes ID \
+        "${BAMS[@]}"
+      echo "featureCounts finished. TXT written to $MATRIX_TXT"
+      
+      # ==============================
+      # CONVERT TO CSV
+      # ==============================
+      grep -v "^#" "$MATRIX_TXT" \
+  | awk 'BEGIN{OFS=","}{for(i=1;i<=NF;i++){printf "%s%s",$i,(i==NF?ORS:OFS)}}' \
+  > "$MATRIX_CSV"
+
+
+## save the script, then submit the job
+  sbatch readcount.sh
+
+      
+### Now from your LOCAL terminal: 
+   scp netID@leap2.txstate.edu:path_to_desired_file path_to_where_you_want_it_on_local
+
+
+## YAY now you can use this for whatever downstream analysis you have planned (ie DESeq, Dream, etc)
+
+
