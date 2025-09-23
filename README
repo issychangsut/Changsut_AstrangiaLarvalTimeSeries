@@ -217,11 +217,11 @@
 
 
 ## Now make a script to generate your readcount matrix from aligning the transcripts to the genome (using the GFF file also allows us to look at the features) ---- if you have a good genome, this is the best way to get the most information imo 
-    nano readcount.sh
+    nano readcountl.sh
 
       #!/bin/bash
       #SBATCH --job-name=readcount
-      #SBATCH -N 1cd
+      #SBATCH -N 1
       #SBATCH -t 6-24:00
       #SBATCH --partition=himem
       #SBATCH --mem=50G
