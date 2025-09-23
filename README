@@ -26,8 +26,6 @@
 ## Add Misha Matz's scripts to the directory
   git clone https://github.com/z0on/tag-based_RNAseq.git
 
-
-
 ## Add it to your path
   echo 'export PATH="$PATH:$HOME/tag-based_RNAseq"' >> ~/.bashrc && source ~/.bashrc
 
@@ -36,9 +34,11 @@
   scp ~/Downloads/Genome ~/TagSeq/Genome:yourname@leap2.txstate.edu
 
 
+
+
 ## If your samples are split across multiple files from different lanes concatenate them
 ## concatenating the corresponding fastq files by sample:
-    ~/pathtotag-based_RNAseq/ngs_concat.pl *_SequenceID    "FilenameTextImmediatelyBeforeSampleID(.+)FilenameTextImmediatelyAfterSampleID"
+  ~/tag-based_RNAseq/ngs_concat.pl ~/pathtotag-based_RNAseq/ngs_concat.pl *_SequenceID    "FilenameTextImmediatelyBeforeSampleID(.+)FilenameTextImmediatelyAfterSampleID"
 
 
 ## Trim the adaptors, deduplicate reads, and quality filter using a bash script called "clean"
@@ -103,7 +103,7 @@
       mkdir -p "$INDEX_DIR" "$OUT_DIR"
       
       # -----------------------------
-      # Step 1: Build STAR genome index
+      # Build STAR genome index
       # -----------------------------
       STAR --runThreadN 16 \
            --runMode genomeGenerate \
@@ -113,7 +113,7 @@
            --sjdbOverhang 49
       
       # -----------------------------
-      # Step 2: Align reads
+      # Align reads
       # -----------------------------
       for fq in "$READ_DIR"/*.trim.fq
       do
@@ -183,7 +183,7 @@
 ## Make a bash script that does this using your reference
 
   nano GeneGene
-      !/bin/bash
+      #!/bin/bash
       #SBATCH --job-name=GeneGene
       #SBATCH -N 1
       #SBATCH -t 6-24:00
@@ -209,12 +209,13 @@
       
       echo "CSV created at: $OUTPUT"
   
-#Save and submit the job
+## Save and submit the job
   sbatch GeneGene
 
 
 ## Now make a script to generate your readcount matrix from aligning the transcripts to the genome (using the GFF file also allows us to look at the features) ---- if you have a good genome, this is the best way to get the most information imo 
     nano readcount.sh
+
       #!/bin/bash
       #SBATCH --job-name=readcount
       #SBATCH -N 1cd
@@ -227,10 +228,8 @@
       #SBATCH -o readcount.out
       #SBATCH -e readcount.err
       
-     
       # directory containing BAM files
       BASEDIR="$HOME/LarvalImmunity/STAR_alignment2Genome/bams"
-      
       
       # Fix GFF file to make it more uniform to extract gene names and collapse exons by this
       # GTF/GFF annotation
@@ -259,7 +258,7 @@
       MATRIX_CSV="$OUTDIR/read_count_matrix.csv"
       
       # ==============================
-      # FIND BAM FILES
+      # Finf the bam files bc idk where they are 
       # ==============================
       BAMS=($(ls "$BASEDIR"/*.bam 2>/dev/null | sort))
       
@@ -273,7 +272,7 @@
         echo "  $f"
       done
       # ==============================
-      # RUN FEATURECOUNTS
+      # Run the featurecounts on the bam files
       # ==============================
       ~/miniconda3/envs/subread/bin/featureCounts \
         -T 16 \
@@ -290,7 +289,7 @@
       echo "featureCounts finished. TXT written to $MATRIX_TXT"
       
       # ==============================
-      # CONVERT TO CSV
+      # CSV is way easier for downstream so just do it now
       # ==============================
       grep -v "^#" "$MATRIX_TXT" \
   | awk 'BEGIN{OFS=","}{for(i=1;i<=NF;i++){printf "%s%s",$i,(i==NF?ORS:OFS)}}' \
@@ -302,7 +301,7 @@
 
       
 ### Now from your LOCAL terminal: 
-   scp netID@leap2.txstate.edu:path_to_desired_file path_to_where_you_want_it_on_local
+   scp netID@leap2.txstate.edu:path_t0_readcount.csv path_to_where_you_want_it_on_local
 
 
 ## YAY now you can use this for whatever downstream analysis you have planned (ie DESeq, Dream, etc)
