@@ -1,0 +1,184 @@
+
+
+###############################################################################
+Sequencing depth: the total number of reads obtained for a given sample (sum of all reads that were assigned to genes in that sample ie library size)
+
+
+
+## The following is an R script 
+################################################################################
+
+## Set the wd 
+setwd("~/Desktop/LarvalDevRI22")
+
+######################################################################
+######################## Install and/or download #####################
+#install("Biostrings", force = TRUE)
+#install("DESeq2", force = TRUE)
+library(DESeq2)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(tidyr)
+library(DescTools)
+library(data.table)
+
+###############################################################################
+##  FOR DESEQ
+## based on mishas github and scripts available in README:
+## https://github.com/z0on/tag-based_RNAseq/blob/master/tagSeq_processing_README.txt
+###############################################################################
+
+
+
+######################################################################
+#################### Loading and formatting data #####################
+## This script requires a read count matric and metadata file
+
+## read in the read count matrix
+reads=read.delim("~/LarvalDevRI22/R", header=TRUE, sep = "\t")
+# colnames(reads)=gsub(".trim.sam.counts", '', colnames(reads), fixed=TRUE)
+reads2=reads[,-1] #all columns of reads except the first which is gene IDs
+rownames(reads2)=reads[,1] # sets these gene IDs as row names for the reads2 data frame
+
+## reading in the metadata from the experiment
+# meta=read.csv("LarvalImmunityMeta.csv", header=TRUE, sep=",")
+# meta=meta[order(meta$sequenceID),]
+# colnames(meta)
+
+## Looking at the file and renaming 
+# final_reads =reads2 %>% 
+# relocate(order(colnames(.)))
+# final_reads=final_reads[,c(1:47)]
+# write.csv(meta,"larval_final_meta.csv")
+
+read.csv("~/Desktop/LarvalDevRI22/larval_final_meta.csv")
+
+## Filtering the reads based on mean minimum
+means <- apply(final_reads,1,mean) # one mean value per gene
+table(means>3) # see how many genes are being filtered
+
+means3 <- names(means[means>3])
+head(means3) #shows the first few passing reads
+length(means3) #says how many genes survived the filtering
+
+countFilt <- final_reads[row.names(final_reads) %in% means3,]
+head(countFilt)
+
+totalCountsFilt <- colSums(countFilt) # total nunmber of reads assigned per sample
+totalCountsFilt # numeric vector with one entry per sample
+
+## Reporting read count distributions 
+min(totalCountsFilt) #0? lowest sample depth
+max(totalCountsFilt) #619477 best sample depth
+mean(totalCountsFilt) #267219 average sample depth
+
+## The following is because I got an error that said every gene had at least one zero so it couldnt do log
+## bc of this, i am adding a 1 to each value but want to keep my column and row names
+## Here I am convert the matrix to tibble and making the rownames a column so that i can add one to only my reads
+count_tibble <- as_tibble(countFilt, rownames = NA) %>% rownames_to_column()%>%
+  mutate(across(2:48, ~ . + 1))
+
+## Convert tibble back to matrix then make the first column row names again <3
+countFilt2 <- count_tibble%>%column_to_rownames(var = "rowname")%>%as.matrix()
+
+library(dtw)
+
+## Format our uniprot info
+annos<-read.delim("astrangia_annos_clean.txt", sep="\t")
+annos<-annos[,c(1:3,5)]
+colnames(annos)[4]="GO"
+colnames(annos)[3]="name"
+
+## Modeling for developmental stage = effect of developmental stage 
+dds <- DESeqDataSetFromMatrix(countData = countFilt2, 
+                              colData = meta, 
+                              design = ~ developmental_stage)
+dds <- estimateSizeFactors(dds)
+vst_mat <- vst(dds)  # variance-stabilized counts
+
+
+object1 <- estimateSizeFactors(object1)
+
+object1 <- estimateDispersions(object1, modelMatrix = dds1)
+dds2 <- nbinomWaldTest(object1, maxit=500, modelMatrix = dds1)  
+resultsNames(dds2)
+
+
+######################################################################
+##################### Stage comparison function ######################
+
+## Save this in a separate R file 
+StageComp <- function(Stage1, Stage2, data) {
+  # Check if Stage1 and Stage2 are character vectors
+  if (!is.character(Stage1) || !is.character(Stage2)) {
+    stop("Arguments Stage1 and Stage2 must be of type character.")
+  }
+  
+  # Perform differential expression analysis
+  DevOneToTwoCell <- results(data, contrast = list(c(Stage1), c(Stage2)))
+  DevOneOrdered <- DevOneToTwoCell[order(DevOneToTwoCell$padj),]
+  
+  # Generate output file name
+  output_file <- paste0(Stage1, Stage2, ".csv")
+  
+  # Write results to CSV file
+  write.csv(DevOneOrdered, file = output_file)
+}
+
+
+#######################################################################
+#################### Running contrasts of interest ####################
+
+## Running contrasts of interest
+  # First, making a function to run the contrasts
+  StageComp <- function(Stage1, Stage2, data) {
+  # Check if Stage1 and Stage2 are character vectors
+  if (!is.character(Stage1) || !is.character(Stage2)) {
+    stop("Arguments Stage1 and Stage2 must be of type character.")
+  }
+  
+  # Perform differential expression analysis
+  DevOneToTwoCell <- results(data, contrast = list(c(Stage1), c(Stage2)))
+  DevOneOrdered <- DevOneToTwoCell[order(DevOneToTwoCell$padj),]
+  
+  # Generate output file name
+  output_file <- paste0(Stage1, Stage2, ".csv")
+  
+  # Write results to CSV file
+  write.csv(DevOneOrdered, file = output_file)
+  }
+
+
+#######################################################################
+###################### Comparisons between stages #####################
+
+# Zygote vs Two Cell
+  DevOneToTwoCell<- results(dds2,contrast=list(c("developmental_stagezygote"), c("Intercept")))
+  DevOneOrdered = DevOneToTwoCell[order(DevOneToTwoCell$padj),]
+  write.csv(DevOneOrdered, file = "DESeq_Count_Developmental_stage1.csv")
+
+# Two cell vs 4 cell
+  StageComp("Intercept","developmental_stage4_cell", dds2)
+  DevTwo=read.csv("~/Desktop/LarvalDevRI22/Interceptdevelopmental_stage4_cell.csv", header=TRUE)
+
+# Four cell vs blastula
+  StageComp("developmental_stage4_cell","developmental_stageblastula", dds2)
+  DevThree=read.csv("developmental_stage4_celldevelopmental_stageblastula.csv", header=TRUE)
+
+#Blastula vs glastula
+  StageComp("developmental_stageblastula","developmental_stagegastrula", dds2)
+  DevFour=read.csv("developmental_stageblastuladevelopmental_stagegastrula.csv", header=TRUE)
+
+#Gastrula vs planula 48
+  StageComp("developmental_stagegastrula","developmental_stageplanula_48h", dds2)
+  DevFive=read.csv("developmental_stagegastruladevelopmental_stageplanula_48h.csv", header=TRUE)
+
+#Planula 48 vs planula 72
+  StageComp("developmental_stageplanula_48h", "developmental_stageplanula_72h_UF", dds2)
+  DevSix=read.csv("developmental_stageplanula_48hdevelopmental_stageplanula_72h_UF.csv", header=TRUE)
+
+#Planula 72 vs 96
+  StageComp("developmental_stageplanula_72h_UF","developmental_stageplanula_96h_UF", dds2)
+  DevSeven=read.csv("developmental_stageplanula_72h_UFdevelopmental_stageplanula_96h_UF.csv", header=TRUE)
