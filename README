@@ -261,7 +261,7 @@
       MATRIX_CSV="$OUTDIR/read_count_matrix.csv"
       
       # ==============================
-      # Finf the bam files bc idk where they are 
+      # Find the bam files bc idk where they are 
       # ==============================
       BAMS=($(ls "$BASEDIR"/*.bam 2>/dev/null | sort))
       
