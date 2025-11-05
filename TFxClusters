@@ -1,0 +1,5 @@
+# Step 1: Merge FIMO and cluster data from the DTW analysis (making sure that both will merge/match using the Gene column)
+# Step 2: Summarize motif enrichment for each cluster 
+# Step 3: Find any driving motifs from each cluster
+# Step 4: Map the motifs to link each one to the best-matching transcription factor 
+# Step 5: ID the top transcription factors per cluster 
