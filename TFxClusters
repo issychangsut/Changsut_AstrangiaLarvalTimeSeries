@@ -3,3 +3,90 @@
 # Step 3: Find any driving motifs from each cluster
 # Step 4: Map the motifs to link each one to the best-matching transcription factor 
 # Step 5: ID the top transcription factors per cluster 
+
+# Step 1 
+library(tidyverse)
+
+# Read FIMO motif counts
+fimo_wide <- read_tsv("~/Desktop/LarvalDevRI22/fimo_wide_counts.tsv")
+
+# Read DTW cluster assignments
+cluster_df <- read_tsv("~/Desktop/LarvalDevRI22/cluster_assignments.tsv") # e.g., Gene | Cluster
+
+# Ensure matching column names
+fimo_cluster <- fimo_wide %>%
+  rename(Gene = sequence_name) %>%
+  left_join(cluster_df, by = "Gene")
+
+# 2 
+motif_cluster_summary <- fimo_cluster %>%
+  group_by(Cluster) %>%
+  summarise(across(starts_with("MEME"), mean)) %>%
+  pivot_longer(-Cluster, names_to = "motif_id", values_to = "mean_occurrence")
+
+# 3 
+motif_cluster_enrichment <- motif_cluster_summary %>%
+  group_by(motif_id) %>%
+  mutate(global_mean = mean(mean_occurrence)) %>%
+  ungroup() %>%
+  mutate(enrichment = mean_occurrence / global_mean) %>%
+  arrange(desc(enrichment))
+
+# 4
+tomtom <- read_tsv("~/Desktop/LarvalDevRI22/tomtom_out/tomtom.tsv")
+
+motif_tf_map <- tomtom %>%
+  group_by(Query_ID) %>%
+  slice_min(E_value, n = 1) %>%  # best match per motif
+  select(Query_ID, Target_ID, Optimal_p_value)
+
+motif_cluster_TF <- motif_cluster_enrichment %>%
+  left_join(motif_tf_map, by = c("motif_id" = "Query_ID"))
+
+# 5 
+top_TFs <- motif_cluster_TF %>%
+  group_by(Cluster) %>%
+  top_n(5, enrichment) %>%
+  arrange(Cluster, desc(enrichment))
+
+
+##playing w/data vis
+library(tidyverse)
+library(igraph)
+library(ggraph)
+
+# Filter for enriched motifs/TFs only
+network_df <- motif_cluster_TF %>%
+  filter(enrichment > 1.5) %>%    # threshold can be adjusted
+  select(Cluster, Target_ID, enrichment) %>%
+  distinct()
+
+# Remove NAs (in case Tomtom didn’t find a match)
+network_df <- network_df %>% filter(!is.na(Target_ID))
+
+# Create igraph object
+network_graph <- graph_from_data_frame(
+  d = network_df,
+  directed = FALSE,
+  vertices = data.frame(
+    name = unique(c(network_df$Cluster, network_df$Target_ID)),
+    type = c(
+      rep("Cluster", length(unique(network_df$Cluster))),
+      rep("TF", length(unique(network_df$Target_ID)))
+    )
+  )
+)
+
+library(ggraph)
+
+ggraph(network_graph, layout = "fr") +  # Fruchterman–Reingold layout
+  geom_edge_link(aes(width = enrichment), alpha = 0.4) +
+  geom_node_point(aes(color = type, size = ifelse(type == "Cluster", 8, 5))) +
+  geom_node_text(aes(label = name, color = type),
+                 repel = TRUE, size = 3, vjust = 1.5) +
+  scale_color_manual(values = c("Cluster" = "#E69F00", "TF" = "#56B4E9")) +
+  theme_void() +
+  labs(title = "TF–Cluster Motif Enrichment Network",
+       subtitle = "Edges = motifs enriched (enrichment > 1.5)")
+
+
