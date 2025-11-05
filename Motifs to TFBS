@@ -1,8 +1,8 @@
 ## Identifying protein motifs and transcription factor binding sites 
 ## this is based off phil cleves scripts from https://www.pnas.org/doi/full/10.1073/pnas.2015737117
 
-# The pipeline for this analysis requires:
-  # your featureCounts output from the readme (list of genes of interest
+# The pipeline for this analysis uses Python, Bash, and R and requires:
+  # your featureCounts output from the readme (list of genes of interest)
   # FASTA genome file
   # GFF3 file 
 This file describes how to do this via:
@@ -13,11 +13,3 @@ This file describes how to do this via:
 # Step 5: Motif discovery -- run MEME to discover motifs (identify statistically enriched motifs in the promoter sequences
 # Step 6: Compare the discovered motifs to database of motifs (JASPAR) using TOMTOM to find which transcription factorsa likely belong to; output: best mathcing motif in JASPAR, similarity score and alignment 
 # Step 7: Use FIMO to scan the sequences and count the occurence of each binding site hit
-
-
-
-# Step 8: Merge FIMO and cluster data from the DTW analysis (making sure that both will merge/match using the Gene column)
-# Step 9: Summarize motif enrichment for each cluster 
-# Step 10: Find any driving motifs from each cluster
-# Step 11: Map the motifs to link each one to the best-matching transcription factor 
-# Step 12: ID the top transcription factors per cluster 
