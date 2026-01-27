@@ -1,0 +1,52 @@
+# Motif Analysis Pipeline for DTW cluster specific transcription factor families
+  ##this workflow was used to identify transcription factor binding motifs in gene clusters associated with the maternal to zygotic transition and other. This script includes cluster specific promoter extraction, de novo motif discovery using MEME, motif comparison using TomTom, and finally annotation against the JASPAR CORE database. THe file includes both R and bash scripts.
+
+## Dependencies
+* R packages: `dplyr`, `readr`, `Biostrings`, `rtracklayer`, `GenomicFeatures`
+* MEME Suite
+
+## Workflow 
+  1. Input relevant data
+    * Genome FASTA
+    * GFF3 annotation file from Stankiwisz 
+    * Gene cluster assignments based on dynamic time warping analysis
+
+  2. Cluster-specific promoter extraction in R
+    * 1kb upstream promoters extracted oer cluster
+    * One concatenated FASTA file per cluster 
+    * `scripts/01_extract_promoters.R`
+
+  3. De novo motif discovery using the meme suite in bash 
+    * independent meme analysis on each cluster using the associated FASTA
+    * `scripts/02_run_meme.sh`
+
+  4. Motif comparisons to known transcription fcator motifs using TomTom in bash
+    * comparison of meme motifs to JASPAR CORE database to identify transcription factors
+    * `scripts/03_run_tomtom.sh`
+
+  5. Motif annotation and transcription factor summarization in R 
+    * filtering tomtom results, annotation using JASPAR and collapsing transcription factors by family
+    * `scripts/04_collapse_tomtom_results.R`
+
+## Results
+- Promoter FASTA files: `results/promoters/`
+- MEME motif results: `results/meme/`
+- TomTom motif matches: `results/tomtom/`
+- Collapsed TF summaries: `results/collapsed_TFs/`
+
+
+## Folder Structure
+- `data/`
+  - `genome/` : fasta and gff3 files
+  - `clusters/` : cluster mapping csv
+  - `jaspar/` : JASPAR motif files
+- `scripts/` : R and bash scripts
+- `results/` : outputs (promoters, MEME, TomTom, collapsed TFs)
+
+## References
+  - [Genome] (Stankiewicz KH, Guiglielmoni N, Kitchen SA, Flot JF, Barott KL, Davies SW, Finnerty JR, Grace SP, Kaufman LS,   Putnam HM, Rotjan RD, Sharp KH, Peters EC, Baums IB. Genomic comparison of the temperate coral Astrangia poculata with tropical corals yields insights into winter quiescence, innate immunity, and sexual reproduction. G3 (Bethesda). 2025 Apr 17;15(4):jkaf033. doi: 10.1093/g3journal/jkaf033. PMID: 39964876; PMCID: PMC12005167.)
+
+  - [JASPAR 2026](https://jaspar.genereg.net/)
+
+  - [Adapted Workflow] (P.A. Cleves,C.J. Krediet,E.M. Lehnert,M. Onishi, & J.R. Pringle,  Insights into coral bleaching under heat stress from analysis of gene expression in a sea anemone model system, Proc. Natl. Acad. Sci. U.S.A. 117 (46) 28906-28917, https://doi.org/10.1073/pnas.2015737117 (2020))
+
