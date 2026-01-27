@@ -2,21 +2,13 @@
 ############# Dynamic Time Warping (DTW) Clustering for Larval Development RNA-Seq ############
 
 
-###############################################################################################
 ####################################### Load libraries ########################################
-###############################################################################################
-
 library(DESeq2)
 library(tidyverse)
 library(dtwclust)
 library(ggplot2)
 
-
-
-###############################################################################################
 ###################################### Load data ##############################################
-###############################################################################################
-
 # Count matrix (rows = genes, cols = samples)
 counts <- read.csv("~/Desktop/LarvalDevRI22/read_count_matrix.csv", row.names = 1)
 
@@ -28,22 +20,12 @@ rownames(meta) <- meta$SequenceID
 # Match sample order between counts and metadata
 counts <- counts[, rownames(meta)]
 
-
-
-###############################################################################################
 ############################### Filter low-expression genes ###################################
-###############################################################################################
-
 means <- rowMeans(counts)
 counts_filt <- counts[means > 3, ]
 cat("Genes retained after filtering:", nrow(counts_filt), "\n")
 
-
-
-###############################################################################################
 ################################ DESeq2 normalization (VST) ###################################
-###############################################################################################
-
 dds <- DESeqDataSetFromMatrix(countData = counts_filt,
                               colData = meta,
                               design = ~ developmental_stage)
@@ -52,11 +34,7 @@ vst_mat <- vst(dds)
 vst_mat <- assay(vst_mat)  # numeric matrix
 
 
-
-###############################################################################################
 ##################################### DTW clustering ##########################################
-###############################################################################################
-
 # Use only variable genes for clustering
 var_genes <- apply(vst_mat, 1, var)
 top_var_genes <- names(sort(var_genes, decreasing = TRUE)[1:2000])
@@ -78,11 +56,7 @@ cluster_assignments <- data.frame(gene = rownames(vst_var), cluster = clusters)
 write.csv(cluster_assignments, "~/Desktop/LarvalDevRI22/transcript_clusters_DTW.csv", row.names = FALSE)
 
 
-
-###############################################################################################
 ############################## Prepare for trajectory plotting ################################
-###############################################################################################
-
 long_expr <- vst_var %>%
   as.data.frame() %>%
   rownames_to_column(var = "gene") %>%
@@ -98,10 +72,7 @@ long_expr$developmental_stage <- factor(long_expr$developmental_stage,
 
 
 
-##############################################################################################
 ################################# Plot cluster trajectories ##################################
-##############################################################################################
-
 mean_expr <- long_expr %>%
   group_by(cluster, developmental_stage) %>%
   summarize(mean_expression = mean(expression, na.rm = TRUE), .groups = "drop")
