@@ -3,7 +3,7 @@
 ### This workflow was adapted from https://github.com/z0on/tag-based_RNAseq/blob/master/tagSeq_processing_README.txt and includes custom bash scripts
 ### This uses STAR to align rather than the traditional bowtie because STAR is splice aware and yielded far better alignment rates than bowtie
 
-
+## Input files are the GFF3 file, masked genome, and your raw reads
 
 ## Open two terminal windows- one for local and one for hpc (if not on campus use VPN)
 
