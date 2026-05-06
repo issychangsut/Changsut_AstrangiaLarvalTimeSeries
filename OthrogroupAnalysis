@@ -1,0 +1,73 @@
+=======================================================================
+ZGA ORTHOGROUP CONSERVATION ANALYSIS 
+=======================================================================
+
+OVERVIEW
+--------
+This pipeline characterizes the evolutionary conservation of ZGA
+(Zygotic Genome Activation) genes in Astrangia poculata by:
+- Running OrthoFinder on two taxon sets
+- Verifying orthogroup stability when outgroups are added
+- Classifying ZGA genes as pan-metazoan, cnidarian-specific, or orphan
+
+KEY FINDING
+-----------
+Cluster 2 (ZGA genes, n=365) are highly conserved across animals:
+- 97.7% of orthogroups are stable across runs
+- Only 1.6% (6/365) are Astrangia-specific orphans
+- vs 4.7% orphan rate in background genes
+→ ZGA genes are enriched for ancient, conserved gene families
+
+DIRECTORY STRUCTURE
+-------------------
+~/Larval_ortholog2026/
+├── DTW_clusters_with_annotations.tsv   # Input: 7,502 genes + cluster labels
+│                                        # Cluster 1 = background
+│                                        # Cluster 2 = ZGA genes
+├── Proteomes_broad/                     # 10 taxa (6 corals + 4 outgroups)
+│   └── OrthoFinder/Results_broad_run/  # 24,549 orthogroups
+├── Proteomes_cnidaria/                  # 7 cnidarian taxa only
+│   └── OrthoFinder/Results_cnidaria_run/ # 18,929 orthogroups
+├── mzt_orthogroup_stability.R          # Script 1: stability check
+├── rescue_check.R                       # Script 2: orphan classification
+├── zga_conservation_matrix.R           # Script 3: conservation breadth
+└── MZT_stability_outputs/
+    ├── DTW_genes_orthogroup_assignments.tsv
+    ├── cluster_orthogroup_summary.tsv
+    ├── orthogroup_stability_broad_vs_cnidaria.tsv
+    ├── cnidaria_rescued_ZGA_genes.tsv
+    ├── astrangia_specific_ZGA_genes.tsv
+    └── [plots].png
+
+IMPORTANT NOTES
+---------------
+1. Gene ID format: OrthoFinder stores Astrangia genes as
+   "protein|evm.model.Ap11.XXXX" — scripts strip this prefix
+   automatically to match the "Ap11.XXXX" format in DTW files.
+
+2. The broad run detects MORE orthogroups than cnidaria-only
+   because bilaterians act as "bridges" connecting coral genes
+   through shared sequence similarity. Use broad run as primary.
+
+3. Stability = same Astrangia genes cluster together in both runs.
+   Split = adding taxa revealed hidden paralogy (biologically valid).
+
+4. Orphan genes (no orthogroup in either run) are candidates for
+   Astrangia-specific innovations. Consider BLASTing against NCBI nr
+   to confirm they are truly novel.
+
+TO RUN ON A NEW DATASET
+-----------------------
+1. Replace DTW_clusters_with_annotations.tsv with your gene+cluster file
+   (must have columns: gene_id, cluster)
+2. Update proteome paths in each script
+3. Change the species column name grep pattern if not "apoculata/poculata"
+4. Change the gene ID prefix stripping regex if not "protein|evm.model."
+5. Run scripts in order: stability → rescue → conservation_matrix
+
+DEPENDENCIES
+------------
+R packages: dplyr, tidyr, readr, ggplot2, scales
+Install:    conda install -c conda-forge r-tidyverse r-ggplot2
+OrthoFinder: v2.5+ recommended
+=======================================================================
