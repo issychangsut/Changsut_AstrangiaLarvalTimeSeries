@@ -1,7 +1,7 @@
 
----
-title: "Larval Developmental Trajectories: Expression, Motifs, Ontology, and Putative Regulatory Networks"
-author: ""
+
+Larval Developmental Trajectories: Expression, Motifs, Ontology, and Putative Regulatory Networks
+author: "issy changsut"
 date: "2026-10-13"
 output:
   html_document:
